@@ -24,7 +24,7 @@ class Proxy
 protected
   def build_request
     params = @in_req.params.dup.update(
-      :fed_key => Fluther::Config.app_key,
+      :fed_key => Fluther::Config.app_key
     )
     params[:fed_sessionid] = @in_req.cookies['fed_sessionid']  if @in_req.cookies['fed_sessionid']
     if @user.present?
@@ -40,6 +40,7 @@ protected
         'User-Agent' => "Fluther Federated Client #{Fluther::ClientVersion} (Ruby)",
         'X-Forwarded-For' => @in_req.env['REMOTE_ADDR'],
         'X-Forwarded-Host' => @in_req.env['HTTP_HOST'],
+        'X-Forwarded-User-Agent' => @in_req.user_agent,
       }
     }
     options[:head]['X-Requested-With'] = @in_req.env['HTTP_X_REQUESTED_WITH']  if @in_req.env['HTTP_X_REQUESTED_WITH']
@@ -47,11 +48,10 @@ protected
 
     path = @in_req.path.sub( %r{^#{@prefix}}, '' )
     path = '/' + path  unless path.starts_with?('/')
+    path += '/'  unless path.ends_with?('/')
     url = "#{@in_req.scheme}://#{Fluther::Config.fluther_host}#{path}"
 
-Rails.logger.debug @in_req.request_method
-Rails.logger.debug url
-Rails.logger.debug options
+Rails.logger.debug "Fluther request: #{@in_req.request_method} #{url} #{options}"
 
     EventMachine::HttpRequest.new( url ).send( @in_req.request_method.downcase.to_sym, options )
   end
@@ -84,8 +84,7 @@ Rails.logger.debug options
   end
 
   def handle_response( fluther )
-Rails.logger.debug fluther.response_header.status
-Rails.logger.debug fluther.response_header
+Rails.logger.debug "Fluther response: #{fluther.response_header.status} #{fluther.response_header}"
 
     type_header = fluther.response_header['CONTENT_TYPE']
     content_type = type_header.split(';')[0] || 'text/html'
